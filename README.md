@@ -1,0 +1,2 @@
+# haystack
+Pinboard search CLI
