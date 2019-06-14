@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -15,6 +16,7 @@ import (
 
 func CLI(args []string) error {
 	fl := flag.NewFlagSet("haystack", flag.ContinueOnError)
+	search := fl.Bool("search", false, "search for similar tags")
 	fl.Usage = func() {
 		fmt.Fprintf(fl.Output(), `haystack - a Pinboard search client
 
@@ -23,19 +25,34 @@ usage:
 	haystack [options] <tags>...
 
 Expects environmental variable PINBOARD_TOKEN set from https://pinboard.in/settings/password
+
+Options:
+
 `)
 		fl.PrintDefaults()
 	}
 	if err := fl.Parse(args); err != nil {
 		return flag.ErrHelp
 	}
-
+	tags := fl.Args()
 	cl := NewClient()
-	posts, err := cl.GetPosts(fl.Args())
-	if err != nil {
-		return err
+
+	if *search {
+		tags, err := cl.TagsLike(tags...)
+		if err != nil {
+			return err
+		}
+		for _, tag := range tags {
+			fmt.Println(tag)
+		}
+		return nil
+	} else {
+		posts, err := cl.GetPosts(tags)
+		if err != nil {
+			return err
+		}
+		return Template.Execute(os.Stdout, posts)
 	}
-	return Template.Execute(os.Stdout, posts)
 }
 
 type Client struct {
@@ -99,6 +116,38 @@ type Post struct {
 	Time                     time.Time
 	URL                      *url.URL
 	Shared, ToRead           bool
+}
+
+func (cl Client) TagsLike(tags ...string) ([]TagCount, error) {
+	normalizedTags := make([]string, len(tags))
+	for i := range tags {
+		normalizedTags[i] = strings.ToLower(tags[i])
+	}
+	canonicalTags, err := cl.GetTags()
+	if err != nil {
+		return nil, err
+	}
+	var returnTags []TagCount
+	for ctag, n := range canonicalTags {
+		for _, ntag := range normalizedTags {
+			if cntag := strings.ToLower(ctag); strings.Contains(cntag, ntag) {
+				returnTags = append(returnTags, TagCount{ctag, n})
+			}
+		}
+	}
+	sort.Slice(returnTags, func(i, j int) bool {
+		return returnTags[i].Count > returnTags[j].Count
+	})
+	return returnTags, nil
+}
+
+type TagCount struct {
+	Tag   string
+	Count int
+}
+
+func (tc TagCount) String() string {
+	return fmt.Sprintf("%q: %d", tc.Tag, tc.Count)
 }
 
 func (cl Client) GetTags() (map[string]int, error) {
