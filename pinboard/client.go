@@ -12,6 +12,9 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	isatty "github.com/mattn/go-isatty"
+	"github.com/mgutz/ansi"
 )
 
 func CLI(args []string) error {
@@ -185,12 +188,30 @@ func (cl Client) Query(path string, values url.Values, data interface{}) error {
 	return dec.Decode(&data)
 }
 
-var Template = template.Must(template.New("").Parse(`
+var Template = template.Must(
+	template.New("").
+		Funcs(template.FuncMap{
+			"bold": func(s string) string {
+				if !isatty.IsTerminal(os.Stdout.Fd()) {
+					return s
+				}
+				return ansi.Color(s, "blue+b")
+			},
+			"underline": func(s string) string {
+				if !isatty.IsTerminal(os.Stdout.Fd()) {
+					return s
+				}
+				return ansi.Color(s, "white+u")
+			},
+		}).
+		Parse(
+			`
 {{- range . -}}
-Title: {{ .Title }}: {{ .Description }}
+Title: {{ .Title | bold }}{{ with .Description }}: {{ . }}{{ end }}
 Date: {{ .Time.Local.Format "Jan. 2, 2006 3:04pm" }}
 Tags: {{range .Tags}}{{ . }} {{end}}
-URL: {{ .URL }}
+URL: {{ .URL.String | underline }}
 
-{{ end -}}
-`))
+{{ end -}}`,
+		),
+)
