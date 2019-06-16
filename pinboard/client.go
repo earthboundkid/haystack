@@ -176,7 +176,9 @@ func (cl Client) Query(path string, values url.Values, data interface{}) error {
 		return err
 	}
 	defer rsp.Body.Close()
-
+	if rsp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad response: %s", rsp.Status)
+	}
 	dec := json.NewDecoder(rsp.Body)
 	return dec.Decode(&data)
 }
