@@ -17,6 +17,8 @@ import (
 func CLI(args []string) error {
 	fl := flag.NewFlagSet("haystack", flag.ContinueOnError)
 	search := fl.Bool("search", false, "search for similar tags")
+	fl.DurationVar(&http.DefaultClient.Timeout, "timeout", 5*time.Second,
+		"timeout for query")
 	fl.Usage = func() {
 		fmt.Fprintf(fl.Output(), `haystack - a Pinboard search client
 
