@@ -157,6 +157,9 @@ func (cl Client) SearchPosts(out io.Writer, tags []string) error {
 	if err != nil {
 		return err
 	}
+	sort.Slice(posts, func(i, j int) bool {
+		return posts[i].Time.Before(posts[j].Time)
+	})
 	return Template.Execute(os.Stdout, posts)
 }
 
