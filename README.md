@@ -1,4 +1,4 @@
-# Haystacl [![GoDoc](https://godoc.org/github.com/carlmjohnson/haystack?status.svg)](https://godoc.org/github.com/carlmjohnson/haystack) [![Go Report Card](https://goreportcard.com/badge/github.com/carlmjohnson/haystack)](https://goreportcard.com/report/github.com/carlmjohnson/haystack)
+# Haystack [![GoDoc](https://godoc.org/github.com/carlmjohnson/haystack?status.svg)](https://godoc.org/github.com/carlmjohnson/haystack) [![Go Report Card](https://goreportcard.com/badge/github.com/carlmjohnson/haystack)](https://goreportcard.com/report/github.com/carlmjohnson/haystack)
 
 Pinboard search CLI
 
