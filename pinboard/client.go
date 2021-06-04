@@ -1,7 +1,7 @@
 package pinboard
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -9,17 +9,17 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
+	"github.com/carlmjohnson/flagext"
+	"github.com/carlmjohnson/requests"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/mgutz/ansi"
 )
 
 func CLI(args []string) error {
-	const tokenname = "PINBOARD_TOKEN"
 	var (
 		search            bool
 		user, pass, token string
@@ -32,8 +32,8 @@ func CLI(args []string) error {
 		"timeout for query")
 	fl.StringVar(&user, "user", "", "username")
 	fl.StringVar(&pass, "password", "", "password")
-	fl.StringVar(&token, "auth-token", "$"+tokenname,
-		`auth token, see https://pinboard.in/settings/password`)
+	fl.StringVar(&token, "auth-token", "",
+		"auth `token`, see https://pinboard.in/settings/password")
 	fl.Usage = func() {
 		fmt.Fprintf(fl.Output(), `haystack - a Pinboard search client
 
@@ -41,7 +41,7 @@ usage:
 
 	haystack [options] <tags>...
 
--auth-token taken from environmental variable $PINBOARD_TOKEN if set.
+All flags may be set by an environmental variable, like $PINBOARD_AUTH_TOKEN.
 
 Options:
 
@@ -51,11 +51,11 @@ Options:
 	if err := fl.Parse(args); err != nil {
 		return flag.ErrHelp
 	}
+	if err := flagext.ParseEnv(fl, "pinboard"); err != nil {
+		return err
+	}
 	cl := NewClient()
 	if user == "" && pass == "" {
-		if token == "$"+tokenname {
-			token = os.Getenv(tokenname)
-		}
 		cl.SetToken(token)
 	} else {
 		cl.SetUsernamePassword(user, pass)
@@ -68,24 +68,21 @@ Options:
 }
 
 type Client struct {
-	BaseURL *url.URL
+	rb *requests.Builder
 }
 
 func NewClient() Client {
-	u, _ := url.Parse("https://api.pinboard.in/?format=json")
 	return Client{
-		BaseURL: u,
+		requests.URL("https://api.pinboard.in/?format=json"),
 	}
 }
 
 func (cl *Client) SetToken(token string) {
-	q := cl.BaseURL.Query()
-	q.Set("auth_token", token)
-	cl.BaseURL.RawQuery = q.Encode()
+	cl.rb.Param("auth_token", token)
 }
 
 func (cl *Client) SetUsernamePassword(u, p string) {
-	cl.BaseURL.User = url.UserPassword(u, p)
+	cl.rb.BasicAuth(u, p)
 }
 
 func (cl Client) SearchTags(out io.Writer, tags []string) error {
@@ -140,14 +137,12 @@ func (tc TagCount) String() string {
 }
 
 func (cl Client) GetTags() (map[string]int, error) {
-	raw := map[string]string{}
-	if err := cl.Query("/v1/tags/get", nil, &raw); err != nil {
+	data := map[string]int{}
+	if err := cl.rb.Clone().
+		Path("/v1/tags/get").
+		ToJSON(&data).
+		Fetch(context.Background()); err != nil {
 		return nil, err
-	}
-	data := make(map[string]int, len(raw))
-	for k, v := range raw {
-		i, _ := strconv.Atoi(v)
-		data[k] = i
 	}
 	return data, nil
 }
@@ -164,12 +159,12 @@ func (cl Client) SearchPosts(out io.Writer, tags []string) error {
 }
 
 func (cl Client) GetPosts(tags []string) ([]Post, error) {
-	q := url.Values{}
-	for _, tag := range tags {
-		q.Add("tag", tag)
-	}
 	var data RawAllPostsResponse
-	if err := cl.Query("/v1/posts/all", q, &data); err != nil {
+	if err := cl.rb.Clone().
+		Path("/v1/posts/all").
+		Param("tag", tags...).
+		ToJSON(&data).
+		Fetch(context.Background()); err != nil {
 		return nil, err
 	}
 	return data.ToPosts(), nil
@@ -212,26 +207,6 @@ type Post struct {
 	Time                     time.Time
 	URL                      *url.URL
 	Shared, ToRead           bool
-}
-
-func (cl Client) Query(path string, values url.Values, data interface{}) error {
-	u := *cl.BaseURL
-	u.Path = path
-	q := u.Query()
-	for key, vals := range values {
-		q[key] = vals
-	}
-	u.RawQuery = q.Encode()
-	rsp, err := http.Get(u.String())
-	if err != nil {
-		return err
-	}
-	defer rsp.Body.Close()
-	if rsp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad response: %s", rsp.Status)
-	}
-	dec := json.NewDecoder(rsp.Body)
-	return dec.Decode(&data)
 }
 
 var Template = template.Must(
