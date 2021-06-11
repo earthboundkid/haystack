@@ -9,7 +9,7 @@ First install [Go](http://golang.org).
 If you just want to install the binary to your current directory and don't care about the source code, run
 
 ```bash
-GOBIN="$(pwd)" GOPATH="$(mktemp -d)" go get github.com/carlmjohnson/haystack
+GOBIN="$(pwd)" go install github.com/carlmjohnson/haystack@latest
 ```
 
 ## Screenshots
@@ -21,12 +21,12 @@ usage:
 
         haystack [options] <tags>...
 
--auth-token taken from environmental variable $PINBOARD_TOKEN if set.
+All options may be set by an environmental variable, like $PINBOARD_AUTH_TOKEN.
 
 Options:
 
-  -auth-token string
-        auth token, see https://pinboard.in/settings/password (default "$PINBOARD_TOKEN")
+  -auth-token token
+        auth token, see https://pinboard.in/settings/password
   -password string
         password
   -t    shortcut for -tag-search

@@ -41,7 +41,7 @@ usage:
 
 	haystack [options] <tags>...
 
-All flags may be set by an environmental variable, like $PINBOARD_AUTH_TOKEN.
+All options may be set by an environmental variable, like $PINBOARD_AUTH_TOKEN.
 
 Options:
 
